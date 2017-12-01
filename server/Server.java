@@ -10,6 +10,16 @@ import java.util.concurrent.Executors;
 
 import data.TData;
 
+/**
+ * Class for initialization server, listener and for parsing messages between client-threads and server
+ * @param - mListener - listener for accept new clients
+ * @param - mClientExecutor - thread pool for client-threads
+ * @param - mClients - hashmap for parse clients using id
+ * @param - mOutBuffer - listener for accept new clients
+ * 
+ * @author ANovikov
+ *
+ */
 public class Server extends Thread {
 	private Listener mListener;
 	private ExecutorService mClientExecutor;
