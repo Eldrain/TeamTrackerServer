@@ -15,7 +15,7 @@ public class TeamTrackerServer {
 	public static final String userPassword = "root";
 	
 	public static void main(String[] args) {
-		Database db = new Database(dbUrl, userName, userPassword);
+		//Database db = new Database(dbUrl, userName, userPassword);
 		
 		
 		Server server = new Server(PORT, 2, System.out);
