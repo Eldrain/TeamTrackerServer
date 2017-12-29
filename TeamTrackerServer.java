@@ -7,6 +7,11 @@ import com.google.gson.Gson;
 import data.Coordinate;
 import server.Database;
 import server.Server;
+import task_framework.ITask;
+import task_schedule.STask;
+import task_schedule.ScheduleConfig;
+import task_schedule.ScheduleProtection;
+import task_schedule.ScheduleSolution;
 
 public class TeamTrackerServer {
 	public static final int PORT = 2222;
@@ -24,6 +29,14 @@ public class TeamTrackerServer {
 		
 		Gson gson = new Gson();
 		Coordinate pack = new Coordinate(30, 500);
+		ITask task = new STask();
+		//ScheduleProtection protect = (ScheduleProtection) task.getProtection();
+		
+		ScheduleConfig config = (ScheduleConfig) task.getStandartConfig();
+		config.mCountProcs = 3;
+		config.mMethod = 3;
+		
+		task.setConfig(config);
 		
 		while(!data.equals("quit")) {	
 			System.out.println("Enter message for client: ");
@@ -33,7 +46,7 @@ public class TeamTrackerServer {
 			System.out.println("Enter id of client: ");
 			int id = scanner.nextInt();
 			
-			server.sendDatatoClient(id, data);
+			//task.solve();
 			
 		}
 		//server.sendDatatoClient(0, );

@@ -1,13 +1,11 @@
 package server;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.LinkedList;
-
-import data.TData;
+import messanger.handler.Handler;
+import messanger.handler.Messanger;
+import messanger.message.Message;
 
 /**
  * Class for communication with client and store information about him
@@ -16,55 +14,79 @@ import data.TData;
  */
 public class Client implements Runnable {
 	/**
-	 * mId - ID of client
-	 * mSocket - socket of client
-	 * mServerInput - array for sending information (TData) to server
-	 * mOutput - to Client
+	 * @param mId - ID of client
+	 * @param mSocket - socket of client
+	 * @param mServerMessanger - messanger for sending messages to server
+	 * @param mHandler - handler of messages to client
 	 */
 	
 	private int mId;
 	private Socket mSocket;
-	private ArrayList<TData> mServerInput;
-	private LinkedList<String> mOutput;
 	
-	public Client(Socket socket, int id, ArrayList<TData> inputBuffer) {
+	private Messanger mServerMessanger;
+	private Handler mHandler;
+	
+	private String mProtectStr;
+	
+	private DataOutputStream out;
+	private DataInputStream in; 
+	
+	//private Gson mGson;
+	
+	public Client(Socket socket, int id, Messanger sMes, String protectStr) {
 		mId = id;
 		mSocket = socket;
-		mServerInput = inputBuffer;
-		mOutput = new LinkedList<String>();
+		mServerMessanger = sMes;
+		//mGson = new Gson();
+		
+		mHandler = new Handler() {
+
+			@Override
+			public void handle(Message message) {
+				try {
+					switch(message.code) {
+					case Message.OUT_INFO:
+						out.writeUTF(message.info);
+						out.flush();
+						break;
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}	
+		};
+		mProtectStr = protectStr;
 	}
 	
-	public void send(String data) {
-		System.out.println("Send to client with id = " + mId);
-		mOutput.addFirst(data);
+	public Messanger getMessanger() {
+		return (Messanger) mHandler.getMessanger();
 	}
 
 	@Override
 	public void run() {
-		DataOutputStream out = null;
-		DataInputStream in = null; 
-		
 		try {
 			out = new DataOutputStream(mSocket.getOutputStream());
 			in = new DataInputStream(mSocket.getInputStream());
-		
+			
+			out.writeInt(mId);
+			out.flush();
+			
+			String login = null;
+			login = in.readUTF();
+			
+			mServerMessanger.send(new Message(Message.IN_NEW_CLIENT, mId, login));
+			
+			out.writeUTF(mProtectStr);
+			out.flush();
 		
 			while(!mSocket.isClosed()) {
 				String data = null;
 				
-				while(!mOutput.isEmpty()) {
-					//Sending information to client
-					data = mOutput.poll();
-					out.writeUTF(data);
-					out.flush();
-					
-					//read info from client
-					data = in.readUTF();
-					//Add received information from client in server array for parse
-					synchronized(mServerInput) {
-						mServerInput.add(new TData(mId, data));
-					}
-				}
+				data = in.readUTF();
+				
+				mServerMessanger.send(new Message(Message.IN_NEW_TASK, mId, data));
+				mHandler.waitMessage();
+				mHandler.handle();
 			}
 		
 		} catch (IOException e) {

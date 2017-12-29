@@ -3,12 +3,17 @@ package server;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import data.TData;
+import com.google.gson.Gson;
+import messanger.handler.Handler;
+import messanger.handler.Messanger;
+import messanger.message.Message;
+import task_schedule.STask;
+import task_schedule.ScheduleConfig;
+import task_schedule.ScheduleProtection;
+import task_schedule.ScheduleSolution;
 
 /**
  * Class for initialization server, listener and for parsing messages between client-threads and server
@@ -23,25 +28,64 @@ import data.TData;
 public class Server extends Thread {
 	private Listener mListener;
 	private ExecutorService mClientExecutor;
-	private HashMap<Integer, Client> mClients;
-	private ArrayList<TData> mOutBuffer;
-	private ArrayList<TData> mInBuffer;
-	private DataOutputStream mServerOut;
-	private boolean mServerStop;
-	DataOutputStream stream;
+	private HashMap<Integer, Messanger> mClients;
+	//private TaskSolver mSolver;
+	private Handler mHandler;
 	
-	public Server(int port, int threadCount, OutputStream stream) {
-		mClients = new HashMap<Integer, Client>();
+	private DataOutputStream mServerOut;
+	
+	
+	private boolean mServerStop;
+	
+	private STask mTask;
+	private Gson mGson;
+	
+	public Server(int port, int threadCount, OutputStream outStream) {
+		mClients = new HashMap<Integer, Messanger>();
 		mClientExecutor = Executors.newFixedThreadPool(threadCount);
-		mOutBuffer = new ArrayList<TData>();
-		mInBuffer = new ArrayList<TData>();
-		
-		/*TODO
-		 * Delete of rewrite this code!!!!*/
 		mServerOut = new DataOutputStream(System.out);
-		this.stream = new DataOutputStream(stream);
 		
-		mListener = new Listener(port, mClients, mClientExecutor, mInBuffer);
+		mHandler = new Handler() {
+			@Override
+			public void handle(Message message) {
+				try {
+					switch(message.code) {
+					case Message.OUT_INFO:
+						Messanger clientMes = null;
+						clientMes = mClients.get(message.client);
+						clientMes.send(message);
+						break;
+					case Message.IN_NEW_CLIENT:
+						
+							mServerOut.writeUTF("\nNew client is connected (" + message.client + ": " + message.info + ")");
+						
+						mServerOut.flush();
+						break;
+					case Message.IN_NEW_TASK:
+						ScheduleConfig config = mGson.fromJson(message.info, ScheduleConfig.class);
+						mTask.setConfig(config);
+						
+						ScheduleSolution sol = (ScheduleSolution) mTask.solve();
+						sol.print();
+						message.code = Message.OUT_INFO;
+						message.info = mGson.toJson(sol);
+						
+						mClients.get(message.client).send(message);
+						mServerOut.writeUTF("\nTask is solved.");
+						mServerOut.flush();
+						break;
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}	
+		};	
+		
+		mTask = new STask();
+		mGson = new Gson();
+		
+		mListener = new Listener(port, mClients, mClientExecutor, mHandler, mGson.toJson((ScheduleProtection)mTask.getProtection()));
 		this.start();
 	}
 	
@@ -50,55 +94,21 @@ public class Server extends Thread {
 		while(true) {
 			if(mServerStop) {
 				System.out.println("Stop server!");
-				mListener.interrupt();
+				mListener.stopListen();
+				try {
+					mListener.interrupt();
+					mListener.join();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 				break;
 			}
 			
-			TData data = null;
-			
-			synchronized(mOutBuffer) {
-				if(mOutBuffer.size() != 0) {
-					data = mOutBuffer.remove(0);
-					Client client = mClients.get(data.mId);
-					
-					if(client != null) {
-						client.send(data.mInfo);
-					} else {
-						System.out.println("Client with id " + data.mId + " not found!");
-						System.out.flush();
-					}
-				}
-			}
-			
-			synchronized(mInBuffer) {
-				if(!mInBuffer.isEmpty()) {
-					data = mInBuffer.remove(0);	
-					try {
-						mServerOut.writeUTF("Client " + data.mId + ": " + data.mInfo + "\n");
-					} catch (IOException e) {	
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		
-		mListener.stopListen();
-		try {
-			mListener.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	public void sendDatatoClient(int idClient, String data) {
-		synchronized(mOutBuffer) {
-			mOutBuffer.add(new TData(idClient, data));
-		}
+			mHandler.handle();
+		}		
 	}
 	
 	public void stopServer() {
 		mServerStop = true;
 	}
-	
-
 }

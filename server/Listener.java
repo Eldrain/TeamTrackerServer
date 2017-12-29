@@ -4,13 +4,11 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
-
 import javax.net.ServerSocketFactory;
-
-import data.TData;
+import messanger.handler.Handler;
+import messanger.handler.Messanger;
 
 /**
  * Class Listener create server socket and accept new connections
@@ -21,16 +19,18 @@ public class Listener extends Thread {
 	private ServerSocket mServerSocket;
 	private final int PORT;
 	private boolean mStopListen;
-	private HashMap<Integer, Client> mClients;
+	private HashMap<Integer, Messanger> mClients;
 	private ExecutorService mClientExecutor;
-	private ArrayList<TData> mServerInput;
+	private Handler mServerHandler;
 	private int count;
+	private String mProtectStr;
 	
-	public Listener(int port, HashMap<Integer, Client> clients, ExecutorService executor, ArrayList<TData> serverInput) {
+	public Listener(int port, HashMap<Integer, Messanger> clients, ExecutorService executor, Handler mSerHandler, String protectStr) {
 		PORT = port;
 		mClients = clients;
 		mClientExecutor = executor;
-		mServerInput = serverInput;
+		mServerHandler = mSerHandler;
+		mProtectStr = protectStr;
 		this.start();
 	}
 	
@@ -46,8 +46,8 @@ public class Listener extends Thread {
 				Socket client = mServerSocket.accept();
 				System.out.println("New client accepted with id = " + count);
 				
-				Client newClient = new Client(client, count, mServerInput);				
-				mClients.put(count, newClient);
+				Client newClient = new Client(client, count, (Messanger)mServerHandler.getMessanger(), new String(mProtectStr));				
+				mClients.put(count, newClient.getMessanger());
 				mClientExecutor.execute(newClient);
 				count++;
 			}
